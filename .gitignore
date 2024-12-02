@@ -1,0 +1,24 @@
+credentials.json
+# Exclure les dossiers et fichiers générés par PyCharm
+.idea/
+
+# Exclure les fichiers Python générés
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Exclure les fichiers de logs
+*.log
+
+# Exclure les fichiers d'environnement virtuel
+venv/
+env/
+
+# Exclure les fichiers spécifiques au système d'exploitation
+.DS_Store
+Thumbs.db
+
+# Exclure les fichiers de configuration
+*.ini
+*.cfg

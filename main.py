@@ -12,6 +12,8 @@ flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
 creds = flow.run_local_server(port=0)
 service = build('gmail', 'v1', credentials=creds)
 
+data = service.users().labels().list(userId='me').execute()
+
 # Fonction pour récupérer le contenu du message
 def get_email_content(msg):
     body = None
@@ -31,44 +33,15 @@ def get_email_content(msg):
     else:
         return "Aucun contenu disponible"
 def add_label(message_id, label_name):
-    # Récupérer la liste des labels existants de l'utilisateur
-    labels = service.users().labels().list(userId='me').execute()
-    
-    # Rechercher l'ID du label par son nom
-    label_id = None
-    for label in labels.get('labels', []):
-        if label['name'].lower() == label_name.lower():
-            label_id = label['id']
-            break
-    
-    # Si le label n'est pas trouvé, le créer
-    if not label_id:
-        print(f"Le label '{label_name}' n'a pas été trouvé. Création d'un nouveau label.")
-        label_body = {
-            'name': label_name,
-            'labelListVisibility': 'labelShow',
-            'messageListVisibility': 'show'
-        }
-        try:
-            new_label = service.users().labels().create(userId='me', body=label_body).execute()
-            label_id = new_label['id']
-            print(f"Label '{label_name}' créé avec succès.")
-        except Exception as error:
-            print(f"Erreur lors de la création du label : {error}")
-            return None
-    
-    # Ajouter le label au message
-    body = {
-        "addLabelIds": [label_id]
-    }
-    
-    try:
-        message = service.users().messages().modify(userId='me', id=message_id, body=body).execute()
-        print(f"Label '{label_name}' ajouté au message {message_id}")
-        return message
-    except Exception as error:
-        print(f"Erreur lors de l'ajout du label : {error}")
-        return None
+    for label in data['labels']:
+        if label['name'] in label_name or label_name in label['name']:
+            body = {
+                'addLabelIds': label['id'],
+            }
+            service.users().messages().modify(userId="me",id=message_id, body=body).execute()
+            print(f"Label {label['name']} ajouté à l'email {message_id}")
+            return
+    print("Aucun Label trouvé on skip")
 
 
 def recup_email(nbrEmailScrap):
@@ -100,10 +73,10 @@ def recup_email(nbrEmailScrap):
             from_header = next(header['value'] for header in headers if header['name'] == 'From')
             subject_header = next(header['value'] for header in headers if header['name'] == 'Subject')
             content = get_email_content(msg)
-            label = AskLlamaLabel(from_header,subject_header,content)
+            label = AskModelLabel(from_header,subject_header,content,"mistral-small")
             add_label(message['id'], label)
             nbrMail+=1
-            print(nbrMail)
+            print(f"Mail {nbrMail} sur {nbrEmailScrap} \n")
         time_remaining(timeBefore100Mails)
 
 
@@ -111,10 +84,10 @@ def recup_email(nbrEmailScrap):
         page_token = results.get('nextPageToken')
         if not page_token:
             break
-def AskLlamaLabel(sender,subject,body):
-    question = f"Voici un e-mail avec l'émetteur : {sender}, le sujet : {subject}, et le contenu : {body}. Analyse-le et retourne uniquement l'une des 5 catégories suivantes : Travail, Personnel, Spame, Urgent, Promotion. Ne mets rien d'autre, aucune explication, juste le label."
+def AskModelLabel(sender,subject,body,modelName):
+    question = f"Voici un e-mail avec l'émetteur : {sender}, le sujet : {subject}, et le contenu : {body}. Analyse-le et retourne uniquement l'une des 5 catégories suivantes : Travail, Personnel, SpamMail, Urgent, Promotion. Ne mets rien d'autre, aucune explication, juste le label."
     data = {
-        "model": "mistral",
+        "model": modelName,
         "messages": [{'role': 'user', "content": question}],
         'stream': False
     }
@@ -126,13 +99,11 @@ def AskLlamaLabel(sender,subject,body):
         response.raise_for_status()
         response_json = response.json()
 
-        # Récupération de la réponse de Llama
-        ai_reply = response_json.get("message", {}).get("content", "No reply received.")
-        print(ai_reply)
+        # Récupération de la réponse du Modele
+        ai_reply = response_json["message"]["content"]
+        print(f"L'IA a trouvé le label : {ai_reply}")
         return ai_reply
     except requests.exceptions.RequestException as e:
         print("Une erreur a eu lieu:", e)
-    except KeyError:
-        print("Erreur de saisie:", response.text)
 
-recup_email(94600)
+recup_email(100)

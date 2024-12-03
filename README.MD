@@ -7,7 +7,7 @@ Ce projet a pour objectif de trier vos e-mails en cinq grandes catégories grâc
 L'idée de ce projet vient de [Solene-drnx](https://github.com/solene-drnx), que nous remercions pour l'inspiration et le contenu qu'elle a partagé.
 
 ## Fonctionnalités
-###Trier les e-mails automatiquement en 5 catégories principales :
+### Trier les e-mails automatiquement en 5 catégories principales :
 - **Travail**
 - **Social**
 - **Promotions**

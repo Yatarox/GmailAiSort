@@ -20,4 +20,4 @@ Vous pouvez consulter et télécharger le projet sur le [GitHub de Solene-drnx](
 
 ### Remerciements
 
-Un grand merci à **Solene-drnx** pour l'idée originale et la base de code qu'elle propose !
+Un grand merci à **Solene-drnx** pour l'idée originale !

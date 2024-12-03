@@ -1,29 +1,17 @@
 import time
-import sqlite3
 import requests
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import base64
 
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
 # Authentification
 flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
 creds = flow.run_local_server(port=0)
 service = build('gmail', 'v1', credentials=creds)
 
-conn = sqlite3.connect('emails.db')
-cursor = conn.cursor()
-
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS emails (
-    id TEXT PRIMARY KEY,
-    thread_id TEXT,
-    label TEXT
-);
-''')
-conn.commit()
 # Fonction pour récupérer le contenu du message
 def get_email_content(msg):
     body = None
@@ -31,10 +19,10 @@ def get_email_content(msg):
         body = msg['payload']['body']['data']
     elif 'parts' in msg['payload']:
         for part in msg['payload']['parts']:
-            if part['mimeType'] == 'text/plain':  # Texte brut
+            if part['mimeType'] == 'text/plain':  
                 body = part['body']['data']
                 break
-            elif part['mimeType'] == 'text/html':  # HTML
+            elif part['mimeType'] == 'text/html':  
                 body = part['body']['data']
                 break
 
@@ -42,11 +30,52 @@ def get_email_content(msg):
         return base64.urlsafe_b64decode(body).decode('utf-8')
     else:
         return "Aucun contenu disponible"
+def add_label(message_id, label_name):
+    # Récupérer la liste des labels existants de l'utilisateur
+    labels = service.users().labels().list(userId='me').execute()
+    
+    # Rechercher l'ID du label par son nom
+    label_id = None
+    for label in labels.get('labels', []):
+        if label['name'].lower() == label_name.lower():
+            label_id = label['id']
+            break
+    
+    # Si le label n'est pas trouvé, le créer
+    if not label_id:
+        print(f"Le label '{label_name}' n'a pas été trouvé. Création d'un nouveau label.")
+        label_body = {
+            'name': label_name,
+            'labelListVisibility': 'labelShow',
+            'messageListVisibility': 'show'
+        }
+        try:
+            new_label = service.users().labels().create(userId='me', body=label_body).execute()
+            label_id = new_label['id']
+            print(f"Label '{label_name}' créé avec succès.")
+        except Exception as error:
+            print(f"Erreur lors de la création du label : {error}")
+            return None
+    
+    # Ajouter le label au message
+    body = {
+        "addLabelIds": [label_id]
+    }
+    
+    try:
+        message = service.users().messages().modify(userId='me', id=message_id, body=body).execute()
+        print(f"Label '{label_name}' ajouté au message {message_id}")
+        return message
+    except Exception as error:
+        print(f"Erreur lors de l'ajout du label : {error}")
+        return None
+
+
 def recup_email(nbrEmailScrap):
 
-    def time_remaining():
+    def time_remaining(timeFor100Mails):
         mailRestant = nbrEmailScrap
-        mailRestant -=100
+        mailRestant -= 100
         tempsRestant = ((mailRestant * timeFor100Mails) / 100) / 3600
         if tempsRestant > 1:
             print(f"Temps restant {tempsRestant} H")
@@ -57,9 +86,7 @@ def recup_email(nbrEmailScrap):
             print(f"Temps restant {tempsRestant} sec")
 
 
-
     nbrMail = 0
-    # Récupérer les messages avec pagination
     page_token = None
     while nbrMail <= nbrEmailScrap:
         # Récupérer la liste des messages
@@ -74,14 +101,10 @@ def recup_email(nbrEmailScrap):
             subject_header = next(header['value'] for header in headers if header['name'] == 'Subject')
             content = get_email_content(msg)
             label = AskLlamaLabel(from_header,subject_header,content)
+            add_label(message['id'], label)
             nbrMail+=1
-            cursor.execute('''
-                    INSERT OR IGNORE INTO emails (id, thread_id,label)
-                    VALUES (?, ?, ?)
-                    ''', (msg['id'], msg['threadId'],label))
-            conn.commit()
             print(nbrMail)
-        time_remaining()
+        time_remaining(timeBefore100Mails)
 
 
         # Passer à la page suivante
@@ -89,11 +112,9 @@ def recup_email(nbrEmailScrap):
         if not page_token:
             break
 def AskLlamaLabel(sender,subject,body):
-    question = f"Je vais te donner un mail avec le nom de l'emmeteur le sujet et le contenu tu devra me redonner uniquement et seulement 1 mot pour categotiser se mail pour pouvoir le lableliser : voici l'emeteur : {sender} avec le sujet : {subject} et le corps du mail : {body}, retourne mot seulkement le lable sans rien de plus"
-
-    # Préparation des données à envoyer
+    question = f"Voici un e-mail avec l'émetteur : {sender}, le sujet : {subject}, et le contenu : {body}. Analyse-le et retourne uniquement l'une des 5 catégories suivantes : Travail, Personnel, Spame, Urgent, Promotion. Ne mets rien d'autre, aucune explication, juste le label."
     data = {
-        "model": "llama3.1",
+        "model": "mistral",
         "messages": [{'role': 'user', "content": question}],
         'stream': False
     }

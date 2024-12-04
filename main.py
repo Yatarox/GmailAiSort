@@ -49,24 +49,24 @@ def add_label(message_id, label_name):
     print("Aucun Label trouvé on skip")
 
 
+
+
+# Fonction pour calculer le temps restant avant la fin du programme
+def time_remaining(timeFor100Mails,nbrEmailScrap):
+    mailRestant = nbrEmailScrap
+    mailRestant -= 100
+    tempsRestant = (mailRestant * timeFor100Mails) / 100
+    if tempsRestant / 3600 > 1:
+        tempsRestant /= 3600
+        print(f"Temps restant {tempsRestant} H")
+    elif tempsRestant / 60 > 1:
+        tempsRestant /= 60
+        print(f"Temps restant {tempsRestant} min")
+    else:
+        print(f"Temps restant {tempsRestant} sec")
+
 # Fonction principale permettant de recuperer les mails afin de leur appliquer les modifs
 def recup_email(nbrEmailScrap):
-
-    # Fonction pour calculer le temps restant avant la fin du programme
-    def time_remaining(timeFor100Mails):
-        mailRestant = nbrEmailScrap
-        mailRestant -= 100
-        tempsRestant = (mailRestant * timeFor100Mails) / 100
-        if tempsRestant / 3600 > 1:
-            tempsRestant /= 3600
-            print(f"Temps restant {tempsRestant} H")
-        elif tempsRestant / 60 > 1:
-            tempsRestant /= 60
-            print(f"Temps restant {tempsRestant} min")
-        else:
-            print(f"Temps restant {tempsRestant} sec")
-
-
     nbrMail = 0
     page_token = None
     # Tant qu'il y'a des mails on recupere des messages
@@ -74,7 +74,7 @@ def recup_email(nbrEmailScrap):
         results = service.users().messages().list(userId='me', pageToken=page_token).execute()
         messages = results.get('messages', [])
         timeBefore100Mails = time.time()
-        # On parcours les messages 
+        # On parcours les messages
         for message in messages:
             # On recupere toute les infos necessaire sur le message
             msg = service.users().messages().get(userId='me', id=message['id']).execute()
@@ -87,13 +87,16 @@ def recup_email(nbrEmailScrap):
             add_label(message['id'], label)
             nbrMail+=1
             print(f"Mail {nbrMail} sur {nbrEmailScrap} \n")
-        time_remaining(timeBefore100Mails)
+            timeAfter100Mails = time.time()
+            timeFor100Mails =  timeAfter100Mails - timeBefore100Mails
+        time_remaining(timeFor100Mails, nbrEmailScrap)
 
 
         # On passe a la page suivante jusque'a ce qu'il y'en ai plus
         page_token = results.get('nextPageToken')
         if not page_token:
             break
+
 
 # Fonction pour demander au modele le label
 def AskModelLabel(sender,subject,body,modelName):
